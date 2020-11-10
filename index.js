@@ -1,5 +1,7 @@
 const { ApolloServer, gql } = require('apollo-server')
 
+const { v1: uuid } = require('uuid')
+
 let authors = [
   {
     name: 'Robert Martin',
@@ -105,6 +107,19 @@ const typeDefs = gql`
     allBooks(author: String, genre: String): [Book!]!
     allAuthors: [Author!]!
   }
+  type Mutation {
+    addBook(
+      title: String!
+      author: String!
+      born: Int
+      published: Int!
+      genres: [String!]
+    ): Book
+    editAuthor(
+      name: String!
+      setBornTo: Int!
+    ): Author
+  }
 `
 
 const resolvers = {
@@ -124,6 +139,39 @@ const resolvers = {
     },
     allAuthors: () => authors,
   
+  },
+  Mutation: {
+    addBook: (root, args) => {
+      if (books.find(b => b.title === args.title)) {
+        throw new UserInputError('Title must be unique', {
+          invalidArgs: args.title,
+        })
+      }
+
+      if(authors.find(a => a.name !== args.author)){
+        const newAuthor = {
+          name: args.author,
+          id: uuid(),
+          born: args.born ? args.born : null
+        }
+        authors = authors.concat(newAuthor)
+      }
+      
+      const book = { ...args, id: uuid() }
+      books = books.concat(book)
+      return book
+    },
+    
+    editAuthor: (root, args) => {
+      const author = authors.find(p => p.name === args.name)
+      if (!author) {
+        return null
+      }
+  
+      const updatedAuthor = { ...author, name: args.name, born: args.setBornTo }
+      authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
+      return updatedAuthor
+    }   
   },
 
   Author: {
