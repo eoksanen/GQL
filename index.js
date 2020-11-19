@@ -108,6 +108,16 @@ let books = [
 ]
 
 const typeDefs = gql`
+type User {
+  username: String!
+  favoriteGenre: String!
+  id: ID!
+}
+
+type Token {
+  value: String!
+}
+
   type Author {
     name: String!
     id: ID!
@@ -124,12 +134,22 @@ const typeDefs = gql`
 
 }
   type Query {
+    me: User
+    addAll: String
     bookCount: Int!
     authorCount: Int!
-    allBooks(author: String!, genre: String): [Book!]!
+    allBooks(author: String, genre: String): [Book!]!
     allAuthors: [Author!]!
   }
   type Mutation {
+    createUser(
+    username: String!
+    favoriteGenre: String!
+  ): User
+  login(
+    username: String!
+    password: String!
+  ): Token
     addBook(
       title: String!
       author: String!
@@ -146,24 +166,42 @@ const typeDefs = gql`
 
 const resolvers = {
   Query: {
+    addAll: () => {
+      authors.map(a => {
+        const addedAuthor = new Author({...a})
+        const writtenBooks = books.filter(b => b.author === addedAuthor.name)
+        const writtenbookswithAuthorID = writtenBooks.map(wb => {
+          wb.author = addedAuthor.id
+          return wb
+        } )
+        console.log('Author ', addedAuthor, '/n', 'books ', writtenBooks)
+
+        addedAuthor.save()
+        writtenbookswithAuthorID.map(wbwau => {
+         const bookToMongo = new Book({...wbwau})
+        bookToMongo.save()
+        })
+      })
+    },
     bookCount: () => books.length,
     authorCount: () => authors.length,
     allBooks: (root, args) => {
       if (!args.author && !args.genre){
-        return books
+        return Book.find({})
       }
       if (args.author) {
-      return books.filter(b => b.author === args.author)
+        return Book.find({"author": args.author})
       }
       if(args.genre) {
-        return books.filter(b => b.genres.includes(args.genre))
+        return Book.find({"genres": { $in: args.genre}})
       }
     },
-    allAuthors: () => authors,
+    allAuthors: () => Author.find({}),
   
   },
   Mutation: {
     addBook: (root, args) => {
+      if(args)
       if (books.find(b => b.title === args.title)) {
         throw new UserInputError('Title must be unique', {
           invalidArgs: args.title,
@@ -202,11 +240,22 @@ const resolvers = {
       args.author = authorToMongo
 
       console.log('arsg ', args)
-      authorToMongo.save()
+      if(authorToMongo.name.length < 4) {
+       throw new UserInputError('Authors name minium lengt is 4 letters')
+      } else {
+          authorToMongo.save()
 
-      const bookMG = new Book({...args})
+      }
+
       
+      const bookMG = new Book({...args})
+
+      console.log('arsg ', args)
+      if(bookMG.title.length < 2) {
+       throw new UserInputError('Book title minium lengt is 2 letters')
+      } else {
       return bookMG.save()
+      }
     },
     
     editAuthor: (root, args) => {
