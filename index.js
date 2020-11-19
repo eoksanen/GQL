@@ -1,6 +1,28 @@
-const { ApolloServer, gql } = require('apollo-server')
+const { ApolloServer, UserInputError, gql } = require('apollo-server')
+
+const mongoose = require('mongoose')
+const Book = require('./models/book')
+const config = require('./utils/config')
+
+console.log(process.env.MONGODB_URI)
+
+// const MONGODB_URI = 'mongodb+srv://fullstack:halfstack@cluster0-ostce.mongodb.net/graphql?retryWrites=true'
+
+const MONGODB_URI = config.MONGODB_URI
+
+console.log('connecting to', MONGODB_URI)
+
+mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false, useCreateIndex: true })
+  .then(() => {
+    console.log('connected to MongoDB')
+  })
+  .catch((error) => {
+    console.log('error connection to MongoDB:', error.message)
+  })
+
 
 const { v1: uuid } = require('uuid')
+const Author = require('./models/Author')
 
 let authors = [
   {
@@ -96,7 +118,7 @@ const typeDefs = gql`
 
     title: String!
     published: Int
-    author: String
+    author: Author!
     id: ID!
     genres: [String]
 
@@ -104,7 +126,7 @@ const typeDefs = gql`
   type Query {
     bookCount: Int!
     authorCount: Int!
-    allBooks(author: String, genre: String): [Book!]!
+    allBooks(author: String!, genre: String): [Book!]!
     allAuthors: [Author!]!
   }
   type Mutation {
@@ -155,11 +177,36 @@ const resolvers = {
           born: args.born ? args.born : null
         }
         authors = authors.concat(newAuthor)
+        const authorToMongo = new Author({...newAuthor})
+        
+        //authorToMongo.save()
       }
       
       const book = { ...args, id: uuid() }
       books = books.concat(book)
-      return book
+
+      console.log('arsg ', args)
+
+      const newAuthor = {
+        name: args.author,
+        id: uuid(),
+        born: args.born ? args.born : null
+      }
+      authors = authors.concat(newAuthor)
+      const authorToMongo = new Author({...newAuthor})
+
+      delete args.author
+
+
+
+      args.author = authorToMongo
+
+      console.log('arsg ', args)
+      authorToMongo.save()
+
+      const bookMG = new Book({...args})
+      
+      return bookMG.save()
     },
     
     editAuthor: (root, args) => {
