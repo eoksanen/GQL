@@ -1,8 +1,11 @@
 const { ApolloServer, UserInputError, gql } = require('apollo-server')
 
 const mongoose = require('mongoose')
+const jwt = require('jsonwebtoken')
 const Book = require('./models/book')
+const User = require('./models/user')
 const config = require('./utils/config')
+const bcrypt = require('bcrypt')
 
 console.log(process.env.MONGODB_URI)
 
@@ -156,16 +159,23 @@ type Token {
       born: Int
       published: Int!
       genres: [String!]
+      token: Token!
     ): Book
     editAuthor(
       name: String!
       setBornTo: Int!
+      token: Token!
     ): Author
   }
 `
 
 const resolvers = {
   Query: {
+    me: (root, args) => {
+      const decodedToken = jwt.verify(args.token, process.env.SECRET)
+      console.log(decodedToken)
+     // User.find({})
+    },
     addAll: () => {
       authors.map(a => {
         const addedAuthor = new Author({...a})
@@ -257,19 +267,77 @@ const resolvers = {
       return bookMG.save()
       }
     },
+    createUser: async (root, args ) => {
+  
+      const user = new User({
+        username: args.username,
+        favoriteGenre: args.favoriteGenre,
+      })
+      const savedUser = user.save()
+
+      return savedUser
+
+    },
+    login: async ( root, args ) => {
+      console.log('args ',args, '/n password')
+      const user = await User.findOne({ username: args.username})
+      console.log('user ', user)
+      /*
+      const passwordCorrect = user === null
+      ? false
+      : await bcrypt.compare(password, user.passwordHash)
+      console.log(passwordCorrect)
+    if (!(user && passwordCorrect)) {
+      throw new Error('invalid username or password')
+    }
+*/
+if(!user){
+  throw new Error('User not found')
+} else {
+
+
+    const userForToken = {
+      username: user.username,
+      id: user._id,
+    }
+
+  console.log('printed TOKEN: ',request.token)
+  const decodedToken = jwt.verify(request.token, process.env.SECRET)
+  const token = jwt.sign(userForToken, process.env.SECRET)
+  console.log('token ', token)
+
+  return { value: token }
+
+}
+
+    },
     
     editAuthor: (root, args) => {
-      const author = authors.find(p => p.name === args.name)
+
+      console.log('printed TOKEN: ',args.token)
+      const decodedToken = jwt.verify(args.token, process.env.SECRET)
+
+      if (!args.token || !decodedToken.id) {
+        return response.status(401).json({ error: 'token missing or invalid' })
+      }
+
+      const author = Author.find({name: args.name})
       if (!author) {
         return null
       }
+      const user = User.find({id: decodedToken.id})
+      console.log('user', user)
+
+      if(decodedToken.id.toString() === args.user.id.toString()){
   
       const updatedAuthor = { ...author, name: args.name, born: args.setBornTo }
       authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
       return updatedAuthor
     }   
   },
+  }
 
+  /*
   Author: {
     bookCount(author) {
 
@@ -278,7 +346,9 @@ const resolvers = {
       return books.filter(book => book.author === author.name).length
     },
   },
+  */
 }
+
 
 const server = new ApolloServer({
   typeDefs,
@@ -288,3 +358,4 @@ const server = new ApolloServer({
 server.listen().then(({ url }) => {
   console.log(`Server ready at ${url}`)
 })
+
