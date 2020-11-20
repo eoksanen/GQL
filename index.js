@@ -137,7 +137,7 @@ type Token {
 
 }
   type Query {
-    me: User
+    me(token: String!): User
     addAll: String
     bookCount: Int!
     authorCount: Int!
@@ -159,22 +159,27 @@ type Token {
       born: Int
       published: Int!
       genres: [String!]
-      token: Token!
+      token: String!
     ): Book
     editAuthor(
       name: String!
       setBornTo: Int!
-      token: Token!
+      token: String!
     ): Author
   }
 `
 
 const resolvers = {
   Query: {
-    me: (root, args) => {
+    me: async (root, args) => {
       const decodedToken = jwt.verify(args.token, process.env.SECRET)
-      console.log(decodedToken)
-     // User.find({})
+
+      console.log('decoded TOKEN: ', decodedToken)
+      const me = await User.findById(decodedToken.id)
+      console.log('me ', me)
+
+      return me
+
     },
     addAll: () => {
       authors.map(a => {
@@ -210,62 +215,66 @@ const resolvers = {
   
   },
   Mutation: {
-    addBook: (root, args) => {
-      if(args)
-      if (books.find(b => b.title === args.title)) {
+    addBook: async (root, args) => {
+
+      console.log('printed TOKEN: ',args.token)
+      const decodedToken = jwt.verify(args.token, process.env.SECRET)
+      console.log('decodedtoken ', decodedToken)
+
+      if (!args.token || !decodedToken.id) {
+        return response.status(401).json({ error: 'token missing or invalid' })
+      }
+
+      const user = await User.findById(decodedToken.id)
+
+      const book = await Book.find({title: args.title})
+
+      console.log('user ', user)
+      console.log('book ', book)
+
+      if(user){
+
+      if(book.title){
         throw new UserInputError('Title must be unique', {
           invalidArgs: args.title,
         })
       }
 
-      if(authors.find(a => a.name !== args.author)){
+      const author = await Author.find({name: args.name})
+
+      
+      console.log('author ', author)
+
+      if(!author.name){
         const newAuthor = {
           name: args.author,
-          id: uuid(),
           born: args.born ? args.born : null
         }
-        authors = authors.concat(newAuthor)
         const authorToMongo = new Author({...newAuthor})
-        
-        //authorToMongo.save()
-      }
+    
       
-      const book = { ...args, id: uuid() }
-      books = books.concat(book)
-
-      console.log('arsg ', args)
-
-      const newAuthor = {
-        name: args.author,
-        id: uuid(),
-        born: args.born ? args.born : null
-      }
-      authors = authors.concat(newAuthor)
-      const authorToMongo = new Author({...newAuthor})
-
       delete args.author
-
-
 
       args.author = authorToMongo
 
-      console.log('arsg ', args)
-      if(authorToMongo.name.length < 4) {
-       throw new UserInputError('Authors name minium lengt is 4 letters')
+      console.log('arsgNew ', args)
+      if(authorToMongo.name.length < 3) {
+       throw new UserInputError('Authors name minium lengt is 3 letters')
       } else {
           authorToMongo.save()
 
       }
-
-      
+    }
+    delete args.token
       const bookMG = new Book({...args})
 
-      console.log('arsg ', args)
+     // console.log('arsg ', args)
       if(bookMG.title.length < 2) {
        throw new UserInputError('Book title minium lengt is 2 letters')
       } else {
       return bookMG.save()
       }
+    }
     },
     createUser: async (root, args ) => {
   
@@ -301,8 +310,6 @@ if(!user){
       id: user._id,
     }
 
-  console.log('printed TOKEN: ',request.token)
-  const decodedToken = jwt.verify(request.token, process.env.SECRET)
   const token = jwt.sign(userForToken, process.env.SECRET)
   console.log('token ', token)
 
@@ -312,31 +319,36 @@ if(!user){
 
     },
     
-    editAuthor: (root, args) => {
+    editAuthor: async (root, args) => {
 
       console.log('printed TOKEN: ',args.token)
       const decodedToken = jwt.verify(args.token, process.env.SECRET)
+      console.log('decodedtoken ', decodedToken)
 
       if (!args.token || !decodedToken.id) {
         return response.status(401).json({ error: 'token missing or invalid' })
       }
 
-      const author = Author.find({name: args.name})
+      const author = await Author.find({name: args.name})
       if (!author) {
         return null
       }
-      const user = User.find({id: decodedToken.id})
+      console.log('author ', author)
+      const user = await User.findById(decodedToken.id)
       console.log('user', user)
 
-      if(decodedToken.id.toString() === args.user.id.toString()){
+      if(decodedToken.id.toString() === user.id.toString()){
+
   
-      const updatedAuthor = { ...author, name: args.name, born: args.setBornTo }
-      authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
+      const editedAuthor = { born: args.setBornTo }
+
+      console.log('Edited author id', author[0]._id)
+      const updatedAuthor  = await Author.findByIdAndUpdate(author[0]._id, editedAuthor, { new: true, useFindAndModify: false })
+
+      console.log('updated author ', updatedAuthor)
       return updatedAuthor
     }   
   },
-  }
-
   /*
   Author: {
     bookCount(author) {
@@ -345,10 +357,11 @@ if(!user){
 
       return books.filter(book => book.author === author.name).length
     },
+    
   },
   */
 }
-
+}
 
 const server = new ApolloServer({
   typeDefs,
