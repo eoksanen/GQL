@@ -159,26 +159,19 @@ type Token {
       born: Int
       published: Int!
       genres: [String!]
-      token: String!
     ): Book
     editAuthor(
       name: String!
       setBornTo: Int!
-      token: String!
     ): Author
   }
 `
 
 const resolvers = {
   Query: {
-    me: async (root, args) => {
-      const decodedToken = jwt.verify(args.token, process.env.SECRET)
+    me: async (root, args, context) => {
 
-      console.log('decoded TOKEN: ', decodedToken)
-      const me = await User.findById(decodedToken.id)
-      console.log('me ', me)
-
-      return me
+      return context.currentUser
 
     },
     addAll: () => {
@@ -215,21 +208,15 @@ const resolvers = {
   
   },
   Mutation: {
-    addBook: async (root, args) => {
+    addBook: async (root, args, {currentUser}) => {
 
-      console.log('printed TOKEN: ',args.token)
-      const decodedToken = jwt.verify(args.token, process.env.SECRET)
-      console.log('decodedtoken ', decodedToken)
-
-      if (!args.token || !decodedToken.id) {
-        return response.status(401).json({ error: 'token missing or invalid' })
+      if (!currentUser) {
+        throw new AuthenticationError("not authenticated")
       }
-
-      const user = await User.findById(decodedToken.id)
+      console.log('user', currentUser)
 
       const book = await Book.find({title: args.title})
 
-      console.log('user ', user)
       console.log('book ', book)
 
       if(user){
@@ -276,33 +263,33 @@ const resolvers = {
       }
     }
     },
-    createUser: async (root, args ) => {
+    createUser: async (root, args, {currentUser} ) => {
+
+      if (!currentUser) {
+        throw new AuthenticationError("not authenticated")
+      }
+      console.log('user', currentUser)
   
       const user = new User({
         username: args.username,
         favoriteGenre: args.favoriteGenre,
       })
-      const savedUser = user.save()
-
-      return savedUser
+      return user.save()
+      .catch(error => {
+        throw new UserInputError(error.message, {
+          invalidArgs: args,
+        })
+      })
 
     },
     login: async ( root, args ) => {
       console.log('args ',args, '/n password')
       const user = await User.findOne({ username: args.username})
       console.log('user ', user)
-      /*
-      const passwordCorrect = user === null
-      ? false
-      : await bcrypt.compare(password, user.passwordHash)
-      console.log(passwordCorrect)
-    if (!(user && passwordCorrect)) {
-      throw new Error('invalid username or password')
-    }
-*/
-if(!user){
-  throw new Error('User not found')
-} else {
+
+      if ( !user || args.password !== 'secret' ) {
+        throw new UserInputError("wrong credentials")
+      }
 
 
     const userForToken = {
@@ -310,36 +297,25 @@ if(!user){
       id: user._id,
     }
 
-  const token = jwt.sign(userForToken, process.env.SECRET)
-  console.log('token ', token)
-
-  return { value: token }
-
-}
+    return { value: jwt.sign(userForToken, process.env.SECRET) }
 
     },
     
-    editAuthor: async (root, args) => {
+    editAuthor: async (root, args, {currentUser}) => {
 
-      console.log('printed TOKEN: ',args.token)
-      const decodedToken = jwt.verify(args.token, process.env.SECRET)
-      console.log('decodedtoken ', decodedToken)
 
-      if (!args.token || !decodedToken.id) {
-        return response.status(401).json({ error: 'token missing or invalid' })
+      if (!currentUser) {
+        throw new AuthenticationError("not authenticated")
       }
+      console.log('user', currentUser)
 
       const author = await Author.find({name: args.name})
       if (!author) {
         return null
       }
       console.log('author ', author)
-      const user = await User.findById(decodedToken.id)
-      console.log('user', user)
 
-      if(decodedToken.id.toString() === user.id.toString()){
 
-  
       const editedAuthor = { born: args.setBornTo }
 
       console.log('Edited author id', author[0]._id)
@@ -361,11 +337,22 @@ if(!user){
   },
   */
 }
-}
+
 
 const server = new ApolloServer({
   typeDefs,
   resolvers,
+  context: async ({ req }) => {
+    const auth = req ? req.headers.authorization : null
+    if (auth && auth.toLowerCase().startsWith('bearer ')) {
+      const decodedToken = jwt.verify(
+        auth.substring(7), process.env.SECRET
+      )
+      const currentUser = await User
+        .findById(decodedToken.id).populate('friends')
+      return { currentUser }
+    }
+  }
 })
 
 server.listen().then(({ url }) => {
