@@ -197,7 +197,7 @@ const resolvers = {
     userCount: () => User.count({}),
     allBooks: (root, args) => {
       if (!args.author && !args.genre){
-        return Book.find({})
+        return Book.find({}).populate('author', { name: 1, born: 1 })
       }
       if (args.author) {
         return Book.find({"author": args.author})
