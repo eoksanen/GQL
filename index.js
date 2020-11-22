@@ -141,6 +141,7 @@ type Token {
     addAll: String
     bookCount: Int!
     authorCount: Int!
+    userCount: Int!
     allBooks(author: String, genre: String): [Book!]!
     allAuthors: [Author!]!
   }
@@ -191,8 +192,9 @@ const resolvers = {
         })
       })
     },
-    bookCount: () => books.length,
-    authorCount: () => authors.length,
+    bookCount: () => Book.count({}),
+    authorCount: () => Author.count({}),
+    userCount: () => User.count({}),
     allBooks: (root, args) => {
       if (!args.author && !args.genre){
         return Book.find({})
@@ -219,7 +221,7 @@ const resolvers = {
 
       console.log('book ', book)
 
-      if(user){
+      if(currentUser){
 
       if(book.title){
         throw new UserInputError('Title must be unique', {
@@ -228,8 +230,7 @@ const resolvers = {
       }
 
       const author = await Author.find({name: args.name})
-
-      
+     
       console.log('author ', author)
 
       if(!author.name){
@@ -239,7 +240,6 @@ const resolvers = {
         }
         const authorToMongo = new Author({...newAuthor})
     
-      
       delete args.author
 
       args.author = authorToMongo
@@ -290,8 +290,7 @@ const resolvers = {
       if ( !user || args.password !== 'secret' ) {
         throw new UserInputError("wrong credentials")
       }
-
-
+      
     const userForToken = {
       username: user.username,
       id: user._id,
@@ -325,19 +324,7 @@ const resolvers = {
       return updatedAuthor
     }   
   },
-  /*
-  Author: {
-    bookCount(author) {
-
-      console.log(books.filter(book => book.author === author.name).length)
-
-      return books.filter(book => book.author === author.name).length
-    },
-    
-  },
-  */
 }
-
 
 const server = new ApolloServer({
   typeDefs,
