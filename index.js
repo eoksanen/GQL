@@ -229,33 +229,40 @@ const resolvers = {
         })
       }
 
-      const author = await Author.find({name: args.name})
-     
+      const author = await Author.find({name: args.author})
+      const authorOne = await Author.findOne({name: args.author})
+      console.log('authorOne ', authorOne) 
       console.log('author ', author)
+      console.log('ANMANE',author[0] ? author[0].name : null)
 
-      if(!author.name){
+      let bookMG
+
+      if(!(author[0] ? author[0].name : null)){
         const newAuthor = {
           name: args.author,
           born: args.born ? args.born : null
         }
         const authorToMongo = new Author({...newAuthor})
     
-      delete args.author
-
-      args.author = authorToMongo
+       delete args.token
+       delete args.author
+        args.author = authorToMongo
 
       console.log('arsgNew ', args)
       if(authorToMongo.name.length < 3) {
        throw new UserInputError('Authors name minium lengt is 3 letters')
       } else {
           authorToMongo.save()
-
       }
+       
+    } else {
+      delete args.token
+      args.author = authorOne._id
+      console.log('bookMG2 ', bookMG)
     }
-    delete args.token
-      const bookMG = new Book({...args})
+    bookMG = new Book({...args})
 
-     // console.log('arsg ', args)
+
       if(bookMG.title.length < 2) {
        throw new UserInputError('Book title minium lengt is 2 letters')
       } else {
