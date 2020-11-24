@@ -137,7 +137,7 @@ type Token {
 
 }
   type Query {
-    me(token: String!): User
+    me: User
     addAll: String
     bookCount: Int!
     authorCount: Int!
@@ -203,7 +203,7 @@ const resolvers = {
         return Book.find({"author": args.author})
       }
       if(args.genre) {
-        return Book.find({"genres": { $in: args.genre}})
+        return Book.find({"genres": { $in: args.genre}}).populate('author', { name: 1, born: 1 })
       }
     },
     allAuthors: () => Author.find({}),
