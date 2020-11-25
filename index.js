@@ -142,7 +142,7 @@ type Token {
     bookCount: Int!
     authorCount: Int!
     userCount: Int!
-    allBooks(author: String, genre: String): [Book!]!
+    allBooks(author: String, genre: String, byUserFavoriteGenre: Boolean): [Book!]!
     allAuthors: [Author!]!
   }
   type Mutation {
@@ -195,8 +195,9 @@ const resolvers = {
     bookCount: () => Book.count({}),
     authorCount: () => Author.count({}),
     userCount: () => User.count({}),
-    allBooks: (root, args) => {
-      if (!args.author && !args.genre){
+    allBooks: (root, args, {currentUser}) => {
+      if (!args.author && !args.genre && !args.byUserFavoriteGenre){
+        console.log('TEST1')
         return Book.find({}).populate('author', { name: 1, born: 1 })
       }
       if (args.author) {
@@ -204,6 +205,16 @@ const resolvers = {
       }
       if(args.genre) {
         return Book.find({"genres": { $in: args.genre}}).populate('author', { name: 1, born: 1 })
+      }
+      if(args.byUserFavoriteGenre){
+        if (!currentUser) {
+          console.log('TEST AP')
+          throw new AuthenticationError("not authenticated")
+        }
+        if(currentUser) {
+          console.log('TEST')
+        return Book.find({"genres": { $in: currentUser.favoriteGenre}}).populate('author', { name: 1, born: 1 })
+        }
       }
     },
     allAuthors: () => Author.find({}),
