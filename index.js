@@ -7,6 +7,9 @@ const User = require('./models/user')
 const config = require('./utils/config')
 const bcrypt = require('bcrypt')
 
+const { PubSub } = require('apollo-server')
+const pubsub = new PubSub()
+
 console.log(process.env.MONGODB_URI)
 
 // const MONGODB_URI = 'mongodb+srv://fullstack:halfstack@cluster0-ostce.mongodb.net/graphql?retryWrites=true'
@@ -166,6 +169,9 @@ type Token {
       setBornTo: Int!
     ): Author
   }
+  type Subscription {
+  bookAdded: Book!
+}  
 `
 
 const resolvers = {
@@ -277,9 +283,12 @@ const resolvers = {
       if(bookMG.title.length < 2) {
        throw new UserInputError('Book title minium lengt is 2 letters')
       } else {
+        pubsub.publish('BOOK_ADDED', { bookAdded: bookMG })
       return bookMG.save()
+      
       }
     }
+    
     },
     createUser: async (root, args, {currentUser} ) => {
 
@@ -342,6 +351,11 @@ const resolvers = {
       return updatedAuthor
     }   
   },
+  Subscription: {
+    bookAdded: {
+      subscribe: () => pubsub.asyncIterator(['BOOK_ADDED'])
+    },
+  },
 }
 
 const server = new ApolloServer({
@@ -360,7 +374,8 @@ const server = new ApolloServer({
   }
 })
 
-server.listen().then(({ url }) => {
+server.listen().then(({ url, subscriptionsUrl }) => {
   console.log(`Server ready at ${url}`)
+  console.log(`Subscriptions ready at ${subscriptionsUrl}`)
 })
 
