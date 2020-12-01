@@ -14,6 +14,8 @@ console.log(process.env.MONGODB_URI)
 
 // const MONGODB_URI = 'mongodb+srv://fullstack:halfstack@cluster0-ostce.mongodb.net/graphql?retryWrites=true'
 
+//const MONGODB_URI = config.MONGODB_URI
+
 const MONGODB_URI = config.MONGODB_URI
 
 console.log('connecting to', MONGODB_URI)
@@ -284,7 +286,10 @@ const resolvers = {
        throw new UserInputError('Book title minium lengt is 2 letters')
       } else {
         pubsub.publish('BOOK_ADDED', { bookAdded: bookMG })
-      return bookMG.save()
+        bookMG.save()
+
+      return bookMG.populate('author', { name: 1, born: 1 }).execPopulate()
+      
       
       }
     }
