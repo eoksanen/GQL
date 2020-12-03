@@ -6,6 +6,23 @@ const Book = require('./models/book')
 const User = require('./models/user')
 const config = require('./utils/config')
 const bcrypt = require('bcrypt')
+const DataLoader = require('dataloader')
+const bookCountLoader = new DataLoader((authorIds) => {
+  console.log('authorSSS', authorIds)
+
+  return listOfCounts(authorIds)
+})
+
+const listOfCounts = async authorIds => {
+  try {
+
+    return authors.map(author => Book.count({"author": author}))
+
+  } catch (err) {
+    throw err
+  }
+}
+ 
 
 const { PubSub } = require('apollo-server')
 const pubsub = new PubSub()
@@ -115,6 +132,7 @@ let books = [
   },
 ]
 
+
 const typeDefs = gql`
 type User {
   username: String!
@@ -200,7 +218,11 @@ const resolvers = {
         })
       })
     },
-    bookCount: () => Book.count({}),
+    
+    bookCount: () => {
+      console.log("bookCount() ")
+      return Book.count({}) },
+      
     authorCount: () => Author.count({}),
     userCount: () => User.count({}),
     allBooks: (root, args, {currentUser}) => {
@@ -225,9 +247,21 @@ const resolvers = {
         }
       }
     },
-    allAuthors: () => Author.find({}),
+    allAuthors: () => {
+      console.log('allAuthors ')
+     return Author.find({}) },
+    //allAuthors: () => authors,
   
   },
+
+  Author: {
+    bookCount: (author) => bookCountLoader.load(author._id)
+    /* {
+      console.log('Author: bookCount() ')
+      return Book.count({"author": author})
+    },*/
+  },
+
   Mutation: {
     addBook: async (root, args, {currentUser}) => {
 
