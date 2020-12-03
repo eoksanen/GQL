@@ -7,8 +7,7 @@ const User = require('./models/user')
 const config = require('./utils/config')
 const bcrypt = require('bcrypt')
 const DataLoader = require('dataloader')
-const bookCountLoader = new DataLoader((authorIds) => {
-  console.log('authorSSS', authorIds)
+const bookCountLoader = new DataLoader(authorIds => {
 
   return listOfCounts(authorIds)
 })
@@ -16,7 +15,7 @@ const bookCountLoader = new DataLoader((authorIds) => {
 const listOfCounts = async authorIds => {
   try {
 
-    return authors.map(author => Book.count({"author": author}))
+    return authorIds.map(author => Book.countDocuments({"author": author}))
 
   } catch (err) {
     throw err
